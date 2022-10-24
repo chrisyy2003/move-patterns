@@ -10,28 +10,30 @@
 
 ## Summary
 
-A **Capability** is a resource proving that the owner of the resource is permitted to execute a certain action. This is the oldest known Move design pattern dating back to the Libra project and its token smart contract, where capabilities were used to authorize minting of coins.
+**能力**是证明**资源的所有者**被允许执行特定操作的资源，最常见的功能之一是`TreasuryCap`（在[sui::coin](https://github.com/MystenLabs/sui/blob/main/crates/sui-framework/sources/coin.move#L19)中定义）。这是已知最古老的 Move 设计模式，可追溯到 Libra 项目及其代币智能合约，其中功能用于授权铸币。
 
 ## Examples
+
+例如当我们想通过限制某个资源的铸造权，**管理权**时Capability是一个很好的选择。
 
 ```move
 module examples::item {
     use sui::transfer;
-    use sui::id::VersionedID;
-    use sui::utf8::{Self, String};
+    use sui::object::{Self, UID};
+    use std::string::{Self, String};
     use sui::tx_context::{Self, TxContext};
 
     /// Type that marks Capability to create new `Item`s.
-    struct AdminCap has key { id: VersionedID }
+    struct AdminCap has key { id: UID }
 
     /// Custom NFT-like type.
-    struct Item has key, store { id: VersionedID, name: String }
+    struct Item has key, store { id: UID, name: String }
 
     /// Module initializer is called once on module publish.
     /// Here we create only one instance of `AdminCap` and send it to the publisher.
-    fun item(ctx: &mut TxContext) {
+    fun init(ctx: &mut TxContext) {
         transfer::transfer(AdminCap {
-            id: tx_context::new_id(ctx)
+            id: object::new(ctx)
         }, tx_context::sender(ctx))
     }
 
@@ -42,11 +44,12 @@ module examples::item {
         _: &AdminCap, name: vector<u8>, to: address, ctx: &mut TxContext
     ) {
         transfer::transfer(Item {
-            id: tx_context::new_id(ctx),
-            name: utf8::string_unsafe(name)
+            id: object::new(ctx),
+            name: string::utf8(name)
         }, to)
     }
 }
+
 ```
 
 *Example for Sui Move is taken from the book [Sui Move by Example](https://examples.sui.io/patterns/capability.html) by [Damir Shamanaev](https://github.com/damirka).*

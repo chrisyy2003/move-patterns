@@ -1,20 +1,16 @@
 # Introduction
 
-While there have been other resource based programming languages in the past (such as [Plaid](http://www.cs.cmu.edu/~aldrich/plaid/)), for a long time resource based programming has been a niche, lacking applications where resource based approach would excel. However, [smart contracts](https://en.wikipedia.org/wiki/Smart_contract) and [blockchains](https://en.wikipedia.org/wiki/Blockchain) introduced software development challenges that can be answered with resource based programming.
+Move是一种安全、沙盒式和形式化验证的下一代编程语言，它的第一个用例是 [Diem](https://en.wikipedia.org/wiki/ Diem_(digital_currency)) 区块链(当时名字叫Libra, 脸书团队开发的项目, 译者注), Move 为其实现提供了基础。 Move 允许开发人员编写灵活管理和转移数字资产的程序，同时提供安全保护，防止对那些链上资产的攻击。不仅如此，Move 也可用于区块链世界之外的开发场景。
 
-The [Move language](https://github.com/move-language/move/) and its Move Virtual Machine were designed originally by Facebook to power their [Diem](https://en.wikipedia.org/wiki/Diem_(digital_currency)) blockchain platform providing an intuitive environment and ecosystem for resource oriented applications. Fortunately Move was adopted by multiple blockchain projects as their smart contract execution environment before Diem was discontinued, so Move continues living separately as an independent project.
+Move 的诞生从[Rust](https://www.rust-lang.org/)中吸取了灵感，Move也是因为使用具有移动(move)语义的资源类型作为数字资产(例如货币)的显式表示而得名。
 
-Today Move and its virtual machine are powering [multiple blockchains](https://github.com/MystenLabs/awesome-move#move-powered-blockchains), most of which are still in the early development phase.
+今天，Move 及其虚拟机正在为 [多个区块链](https://github.com/MystenLabs/awesome-move#move-powered-blockchains) 提供动力，其中大部分仍处于早期开发阶段。
 
-Because Move is currently the most widely developed resource based programming language for blockchains, code examples are written in Move. However it is likely that some of these patterns can be implemented also in some other resource based language and ecosystem.
+## What is Move Patterns for? 
 
-## What this book is
+本书旨在讨论面向资源的语言的软件设计模式和最佳实践，尤其是Move(特别是sui move)及其风格。这部分涵盖了 Move 中广泛使用的编程模式；其中一些只能存在于 Move 中。然而，这些模式中的一些很可能也可以在其他一些基于资源的语言和生态系统中实现。
 
-This book is for discussing software design paradigms and best practices for resource based languages, especially Move and its flavors.
-
-## What this book is not
-
-This book is not a guide to Move or any other resource based language. For books on Move itself, see [this list](https://github.com/MystenLabs/awesome-move#books). Also see [awesome-move](https://github.com/MystenLabs/awesome-move) for a curated list of code and content from the Move programming language community.
+本书不是 Move 或任何其他面向资源的语言的指南。 有关 Move 本身的书籍，请参阅 [awesome-move#books](https://github.com/MystenLabs/awesome-move#books)。 另请参阅 [awesome-move](https://github.com/MystenLabs/awesome-move) 以获取来自 Move 编程语言社区的代码和内容的精选列表。
 
 ## Technical disclaimer
 
