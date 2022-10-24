@@ -1,3 +1,10 @@
-**A book on Move programming language design patterns. Also available at [move-patterns.com](https://www.move-patterns.com/).**
+# Move Patterns
 
-*The book is made using [mdBook](https://github.com/rust-lang/mdBook) and [Move highlight.js plugin from @damirka](https://github.com/MystenLabs/sui/blob/main/doc/book/theme/highlight.js)*
+一本关于 Move 编程语言设计模式的书。
+
+可以选择本地通过命令构建，也可以直接访问在线网站[move-patterns.chrisyy.top](http://move-patterns.chrisyy.top/) ，英文原版 [move-patterns.com](https://www.move-patterns.com/)
+
+```
+mdbook serve --open
+```
+
