@@ -3,10 +3,10 @@
 
 # Design Patterns
 - [Capability](./capability.md)
-- [Multiple Configurations](./multiple-configurations.md)
-- [Nestable Resources](./nestable-resources.md)
+- [Wrapper](./wrapper.md)
 - [Witness](./witness.md)
-- [Accountless Design](./accountless-design.md)
 - [Hot Potato](./hot-potato.md)
+- [Multiple Configurations](./multiple-configurations.md)
+- [Accountless Design](./accountless-design.md)
 - [Script Based Design](./script-based-design.md)
 - [Transferable Witness](./transferable-witness.md)
