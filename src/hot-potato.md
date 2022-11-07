@@ -8,18 +8,77 @@
 | **Depends on** | None |
 | **Known to work on** | Move |
 
-## Summary
+## 概述
 
-A **Hot Potato** is a struct without `key`, `store` and `drop` [abilities](https://move-language.github.io/move/abilities.html) forcing the struct to be used within the transaction it was created in. This is desired in applications like [flash loans](https://github.com/MystenLabs/sui/blob/a6156aeaf332b9f257cf04063a9a751a7a431360/sui_programmability/examples/defi/sources/flash_lender.move) where the loans must be initiated and repaid during the same transaction.
-
-## Examples
+Hot Potato模式受益于Move中的Ability，Hot Potato是一个没有`key`、`store`和`drop`能力的结构，强制该结构在创建它的模块中使用掉。这种模式在闪电贷款这样的需要原子性的程序中是理想的，因为在同一交易中必须启动和偿还贷款。
 
 ```move
-// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
+struct Hot_Potato {}
+```
 
-/// A flash loan that works for any Coin type
-module defi::flash_lender {
+相较于Solidity中的闪电贷的实现，Move中的实现是优雅的。在Solidity中会涉及到较多的动态调用，并且存在重入，拒绝服务攻击等问题。但在Move中，当函数返回了一个不具有任何的ability的potato时，由于没有drop的ability也，所以没办法储存到全局里面去，也没有办法去储存到其他结构体中。在函数结束的时也不能丢弃，所以必须解构这个资源，或者传给另外一个可以使用这个potato的一个函数。
+
+所以通过这个方式，可以来实现函数的调用流程。模块可以在没有调用者任何背景和条件下，**保证调用者一定会按照预先设定的顺序去调用函数**。
+
+> 闪电贷本质也是一个调用顺序的问题
+> 
+
+## 如何使用
+
+### Aptos
+
+Aptos上[Liqudswasp](https://github.com/pontem-network/liquidswap/blob/main/sources/swap/liquidity_pool.move#L99)项目实现了FlashLoan，这里提取了核心的代码。
+
+```move
+public fun flashloan<X, Y, Curve>(x_loan: u64, y_loan: u64): (Coin<X>, Coin<Y>, Flashloan<X, Y, Curve>)
+    acquires LiquidityPool, EventsStore {
+        let pool = borrow_global_mut<LiquidityPool<X, Y, Curve>>(@liquidswap_pool_account);
+        ...
+        let reserve_x = coin::value(&pool.coin_x_reserve);
+        let reserve_y = coin::value(&pool.coin_y_reserve);
+        // Withdraw expected amount from reserves.
+        let x_loaned = coin::extract(&mut pool.coin_x_reserve, x_loan);
+        let y_loaned = coin::extract(&mut pool.coin_y_reserve, y_loan);
+        ...
+        // Return loaned amount.
+        (x_loaned, y_loaned, Flashloan<X, Y, Curve> { x_loan, y_loan })
+    }
+
+public fun pay_flashloan<X, Y, Curve>(
+        x_in: Coin<X>,
+        y_in: Coin<Y>,
+        loan: Flashloan<X, Y, Curve>
+    ) acquires LiquidityPool, EventsStore {
+        ...
+        let Flashloan { x_loan, y_loan } = loan;
+
+        let x_in_val = coin::value(&x_in);
+        let y_in_val = coin::value(&y_in);
+
+        let pool = borrow_global_mut<LiquidityPool<X, Y, Curve>>(@liquidswap_pool_account);
+
+        let x_reserve_size = coin::value(&pool.coin_x_reserve);
+        let y_reserve_size = coin::value(&pool.coin_y_reserve);
+
+        // Reserve sizes before loan out
+        x_reserve_size = x_reserve_size + x_loan;
+        y_reserve_size = y_reserve_size + y_loan;
+
+        // Deposit new coins to liquidity pool.
+        coin::merge(&mut pool.coin_x_reserve, x_in);
+        coin::merge(&mut pool.coin_y_reserve, y_in);
+        ...
+    }
+```
+
+### Sui
+
+sui[官方示例](https://github.com/MystenLabs/sui/blob/main/sui_programmability/examples/defi/sources/flash_lender.move)中同样实现了闪电贷。
+
+当用户借款时调用`loan`函数返回一笔资金`coin`和一个记录着借贷金额`value`但没有任何`ability`的`receipt`收据，如果用户试图不归还资金，那么这个收据将被丢弃从而报错，所以必须调用`repay`函数从而销毁收据。收据的销毁完全由模块控制，销毁时验证传入的金额是否等于收据中的金额，从而保证闪电贷的逻辑正确。
+
+```move
+module example::flash_lender {
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::object::{Self, ID, UID};
@@ -58,27 +117,7 @@ module defi::flash_lender {
         id: UID,
         flash_lender_id: ID,
     }
-
-    /// Attempted to borrow more than the `FlashLender` has.
-    /// Try borrowing a smaller amount.
-    const ELoanTooLarge: u64 = 0;
-
-    /// Tried to repay an amount other than `repay_amount` (i.e., the amount borrowed + the fee).
-    /// Try repaying the proper amount.
-    const EInvalidRepaymentAmount: u64 = 1;
-
-    /// Attempted to repay a `FlashLender` that was not the source of this particular debt.
-    /// Try repaying the correct lender.
-    const ERepayToWrongLender: u64 = 2;
-
-    /// Attempted to perform an admin-only operation without valid permissions
-    /// Try using the correct `AdminCap`
-    const EAdminOnly: u64 = 3;
-
-    /// Attempted to withdraw more than the `FlashLender` has.
-    /// Try withdrawing a smaller amount.
-    const EWithdrawTooLarge: u64 = 4;
-
+    
     // === Creating a flash lender ===
 
     /// Create a shared `FlashLender` object that makes `to_lend` available for borrowing.
@@ -93,14 +132,6 @@ module defi::flash_lender {
 
         // give the creator admin permissions
         AdminCap { id: object::new(ctx), flash_lender_id }
-    }
-
-    /// Same as `new`, but transfer `WithdrawCap` to the transaction sender
-    public entry fun create<T>(to_lend: Coin<T>, fee: u64, ctx: &mut TxContext) {
-        let balance = coin::into_balance(to_lend);
-        let withdraw_cap = new(balance, fee, ctx);
-
-        transfer::transfer(withdraw_cap, tx_context::sender(ctx))
     }
 
     // === Core functionality: requesting a loan and repaying it ===
@@ -130,69 +161,45 @@ module defi::flash_lender {
 
         coin::put(&mut self.to_lend, payment)
     }
-
-    // === Admin-only functionality ===
-
-    /// Allow admin for `self` to withdraw funds.
-    public fun withdraw<T>(
-        self: &mut FlashLender<T>,
-        admin_cap: &AdminCap,
-        amount: u64,
-        ctx: &mut TxContext
-    ): Coin<T> {
-        // only the holder of the `AdminCap` for `self` can withdraw funds
-        check_admin(self, admin_cap);
-
-        let to_lend = &mut self.to_lend;
-        assert!(balance::value(to_lend) >= amount, EWithdrawTooLarge);
-        coin::take(to_lend, amount, ctx)
-    }
-
-    /// Allow admin to add more funds to `self`
-    public entry fun deposit<T>(
-        self: &mut FlashLender<T>, admin_cap: &AdminCap, coin: Coin<T>
-    ) {
-        // only the holder of the `AdminCap` for `self` can deposit funds
-        check_admin(self, admin_cap);
-        coin::put(&mut self.to_lend, coin);
-    }
-
-    /// Allow admin to update the fee for `self`
-    public entry fun update_fee<T>(
-        self: &mut FlashLender<T>, admin_cap: &AdminCap, new_fee: u64
-    ) {
-        // only the holder of the `AdminCap` for `self` can update the fee
-        check_admin(self, admin_cap);
-
-        self.fee = new_fee
-    }
-
-    fun check_admin<T>(self: &FlashLender<T>, admin_cap: &AdminCap) {
-        assert!(object::borrow_id(self) == &admin_cap.flash_lender_id, EAdminOnly);
-    }
-
-    // === Reads ===
-
-    /// Return the current fee for `self`
-    public fun fee<T>(self: &FlashLender<T>): u64 {
-        self.fee
-    }
-
-    /// Return the maximum amount available for borrowing
-    public fun max_loan<T>(self: &FlashLender<T>): u64 {
-        balance::value(&self.to_lend)
-    }
-
-    /// Return the amount that the holder of `self` must repay
-    public fun repay_amount<T>(self: &Receipt<T>): u64 {
-        self.repay_amount
-    }
-
-    /// Return the amount that the holder of `self` must repay
-    public fun flash_lender_id<T>(self: &Receipt<T>): ID {
-        self.flash_lender_id
-    }
 }
 ```
 
-*Example for Sui Move is taken from the [Sui repository](https://github.com/MystenLabs/sui/blob/7af627ea406f0d838b4a26ec9c7ce123ed59fc08/sui_programmability/examples/defi/sources/flash_lender.move).*
+## 总结
+
+Hot Potato设计模式不仅仅只适用于闪电贷的场景，还可以用来控制更复杂的函数调用顺序。
+
+例如我们想要一个制作土豆的合约，当用户调用`get_potato`时，会得到一个没有任何能力的`potato`，我们想要用户得倒之后，按照切土豆、煮土豆最后才能吃土豆的一个既定流程来操作。所以用户为了完成交易那么必须最后调用`consume_potato`，但是该函数限制了土豆必须被`cut`和`cook`，所以需要分别调用`cut_potato`和`cook_potato`，`cook_potato`中又限制了必须先被`cut`，从而合约保证了调用顺序必须为get→cut→cook→consume，从而控制了调用顺序。
+
+```move
+module example::hot_potato {
+    /// Without any capability,
+    struct Potato {
+        has_cut: bool,
+        has_cook: bool,
+    }
+    /// When calling this function, the `sender` will receive a `Potato` object.
+    /// The `sender` can do nothing with the `Potato` such as store, drop,
+    /// or move_to the global storage, except passing it to `consume_potato` function.
+    public fun get_potato(_sender: &signer): Potato {
+        Potato {
+            has_cut: false,
+            has_cook: false,
+        } 
+    }
+
+    public fun cut_potatoes(potato: &mut Potato) {
+        assert!(!potato.has_cut, 0);
+        potato.has_cut = true;
+    }
+
+    public fun cook_potato(potato: &mut Potato) {
+        assert!(!potato.has_cook && potato.has_cut, 0);
+        potato.has_cook = true;
+    }
+
+    public fun consume_potato(_sender: &signer, potato: Potato) {
+        assert!(potato.has_cook && potato.has_cut, 0);
+        let Potato {has_cut: _, has_cook: _ } = potato; // destroy the Potato.
+    }
+}
+```

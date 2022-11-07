@@ -1,8 +1,8 @@
-# Nestable Resources
+# Wrapper
 
 |||
 |-|-|
-| **Name** | Nestable Resources |
+| **Name** | Wrapper |
 | **Origin** | [Ville Sundell](https://github.com/villesundell) |
 | **Example** | [TaoHe project](https://github.com/taoheorg/taohe) |
 | **Depends on** | None |
