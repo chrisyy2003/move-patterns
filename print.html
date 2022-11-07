@@ -138,13 +138,62 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
-<p>Move是一种安全、沙盒式和形式化验证的下一代编程语言，它的第一个用例是 [Diem](https://en.wikipedia.org/wiki/ Diem_(digital_currency)) 区块链(当时名字叫Libra, 脸书团队开发的项目, 译者注), Move 为其实现提供了基础。 Move 允许开发人员编写灵活管理和转移数字资产的程序，同时提供安全保护，防止对那些链上资产的攻击。不仅如此，Move 也可用于区块链世界之外的开发场景。</p>
-<p>Move 的诞生从<a href="https://www.rust-lang.org/">Rust</a>中吸取了灵感，Move也是因为使用具有移动(move)语义的资源类型作为数字资产(例如货币)的显式表示而得名。</p>
+                        <h1 id="介绍"><a class="header" href="#介绍">介绍</a></h1>
+<p>Move是一种安全、沙盒式和形式化验证的下一代编程语言，它的第一个用例是<a href="https://en.wikipedia.org/wiki/Diem_(digital_currency)">Diem</a>区块链（当时名字叫Libra, 脸书团队开发的项目, 译者注）,Move为其实现提供了基础。 Move 允许开发人员编写灵活管理和转移数字资产的程序，同时提供安全保护，防止对那些链上资产的攻击。不仅如此，Move 也可用于区块链世界之外的开发场景。</p>
+<p>Move 的诞生从<a href="https://www.rust-lang.org/">Rust</a>中吸取了灵感，Move也是因为使用具有移动（move）语义的资源类型作为数字资产（例如货币）的显式表示而得名。</p>
 <p>今天，Move 及其虚拟机正在为 <a href="https://github.com/MystenLabs/awesome-move#move-powered-blockchains">多个区块链</a> 提供动力，其中大部分仍处于早期开发阶段。</p>
-<h2 id="what-is-move-patterns-for"><a class="header" href="#what-is-move-patterns-for">What is Move Patterns for?</a></h2>
-<p>本书旨在讨论面向资源的语言的软件设计模式和最佳实践，尤其是Move(特别是sui move)及其风格。这部分涵盖了 Move 中广泛使用的编程模式；其中一些只能存在于 Move 中。然而，这些模式中的一些很可能也可以在其他一些基于资源的语言和生态系统中实现。</p>
-<p>本书不是 Move 或任何其他面向资源的语言的指南。 有关 Move 本身的书籍，请参阅 <a href="https://github.com/MystenLabs/awesome-move#books">awesome-move#books</a>。 另请参阅 <a href="https://github.com/MystenLabs/awesome-move">awesome-move</a> 以获取来自 Move 编程语言社区的代码和内容的精选列表。</p>
+<h2 id="什么是move-patterns"><a class="header" href="#什么是move-patterns">什么是Move Patterns</a></h2>
+<p>本书旨在讨论面向资源的语言的软件设计模式和最佳实践，尤其是Move及其风格。这部分涵盖了 Move 中广泛使用的编程模式，为什么会存在Move设计模式，主要有以下三个方面。</p>
+<ul>
+<li>
+<p>面向资源编程
+Move是一种新的编程语言，其特点是面向资源编程，对于区块链最核心的 Token 资产进行了更为贴合的处理，实现了真正意义上的数字资产化。Move与传统面向对象的编程语言有着很大不同，所以一些面向对象的设计模式在Move中是不存在的（例如Uniswap中的工厂模式）。当然，这些模式中的一些很可能也可以在其他一些基于资源的语言和生态系统中实现。</p>
+</li>
+<li>
+<p>状态存储机制
+在Solidity中，能够定义并保存自己的状态变量，变量的值放在全局储存上，在合约中可以直接通过全局变量直接读取或者修改它。</p>
+<pre><code class="language-solidity">// A solidity examply
+// set msg.sender to owner
+contract A {
+    // 定义一个状态变量
+    address owner;
+    function setOwner() public {
+	// 通过变量名直接修改
+        owner = msg.sender;
+    }
+}
+</code></pre>
+<p>但是在Move中存储方式是完全不一样的，Move合约并不直接存储资源，代码中的每一个变量都是一个资源对象，是资源对象那么必须通过显示的接口去明确的调用。</p>
+<p>Move中对资源的访问都是通过<a href="http://movebook.chrisyy.top/global-storage-operators.html">全局存储操作</a>接口来访问的。操作函数包括<code>move_to</code>或者<code>move from</code>或者<code>borrow_global</code>，<code>borrow_global_mut</code>等函数。从全局储存里面取出资源，或者存放到账户下去，引用资源对象或者修改，都是需要<strong>要开发者显示的去表示。</strong></p>
+<pre><code class="language-solidity">module example::m {
+    // A Coin type
+    // 一种Coin类型的资源
+    struct Coin has key, store{
+        value: u64
+    }
+    // send sender a coin value of 100
+    // 在sender地址下存放100个coin
+    public entry fun mint(sender: &amp;signer) {
+        move_to(sender, Coin {
+            value: 100
+        });
+    }
+}
+</code></pre>
+</li>
+<li>
+<p>Ability 
+Ability是 Move 语言中的一种类型特性，用于控制对给定类型的值允许哪些操作。</p>
+<ul>
+<li><a href="http://movebook.chrisyy.top/abilities.html#copy">copy</a>复制：允许此类型的值被复制</li>
+<li><a href="http://movebook.chrisyy.top/abilities.html#drop">drop</a> 丢弃：允许此类型的值被弹出/丢弃，没有话表示必须在函数结束之前将这个值销毁或者转移出去。</li>
+<li><a href="http://movebook.chrisyy.top/abilities.html#store">store</a> 存储：允许此类型的值存在于全局存储中或者某个结构体中</li>
+<li><a href="http://movebook.chrisyy.top/abilities.html#key">key</a> 键值：允许此类型作为全局存储中的键(具有 <code>key</code> 能力的类型才能保存到全局存储中)</li>
+</ul>
+</li>
+</ul>
+<p>作为面向资源的编程语言，以上三个特点也是与其他语言非常不同的地方，基于资源编程的Move编程模式，也主要是围绕这些特性产生的。</p>
+<p>此外本书不是 Move 或任何其他面向资源的语言的指南。 有关 Move 本身的书籍，请参阅 <a href="https://github.com/MystenLabs/awesome-move#books">awesome-move#books</a>。 另请参阅 <a href="https://github.com/MystenLabs/awesome-move">awesome-move</a> 以获取来自 Move 编程语言社区的代码和内容的精选列表。</p>
 <h2 id="technical-disclaimer"><a class="header" href="#technical-disclaimer">Technical disclaimer</a></h2>
 <p>This book is designed to be viewed digitally with hyperlink support (such as PDF or web format). For now the <a href="https://en.wikipedia.org/wiki/Software_design_pattern#Documentation">full software pattern format</a> is not followed, instead the patterns are simply defined by a short summary and examples.</p>
 <h2 id="license"><a class="header" href="#license">License</a></h2>
@@ -260,77 +309,6 @@
 }
 </code></pre>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="nestable-resources"><a class="header" href="#nestable-resources">Nestable Resources</a></h1>
-<div class="table-wrapper"><table><thead><tr><th></th><th></th></tr></thead><tbody>
-<tr><td><strong>Name</strong></td><td>Nestable Resources</td></tr>
-<tr><td><strong>Origin</strong></td><td><a href="https://github.com/villesundell">Ville Sundell</a></td></tr>
-<tr><td><strong>Example</strong></td><td><a href="https://github.com/taoheorg/taohe">TaoHe project</a></td></tr>
-<tr><td><strong>Depends on</strong></td><td>None</td></tr>
-<tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
-</tbody></table>
-</div>
-<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
-<p><strong>Nestable Resources</strong> pattern provides a resource native approach to code reuse by building a nested structure of resources where each resource can be detached for use if the conditions are satisfied. For example, tokens can be placed into a time locked resource, which in turn can be placed into a resource which can be used only by a certain user, effectively creating a timelocked non-fungible token. For cleaner design and easier integration it is recommended that the nestable resources share a common interface for wrapping and unwrapping.</p>
-<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
-<pre><code class="language-move">/// A nested resource (tao) for implementing a simple ownership model: owner can extract
-/// the content.
-module 0x1::Ownable {
-    use Std::Signer;
-
-    /// Simple ownership tao: the `owner` can extract `content`.
-    struct Tao&lt;Content&gt; has key, store {
-        owner: address,
-        content: Content
-    }
-
-    /// Wrapping `content` into a tao the `owner` can only extract.
-    public fun wrap&lt;Content&gt;(owner: address, content: Content): Tao&lt;Content&gt; {
-        Tao&lt;Content&gt; { owner, content }
-    }
-
-    /// Immutable read-only reference to the owner address, and `content`.
-    public fun read&lt;Content&gt;(tao: &amp;Tao&lt;Content&gt;): (&amp;address, &amp;Content) {
-        let Tao&lt;Content&gt; { owner, content } = tao;
-
-        (owner, content)
-    }
-
-    /// If `account ` is the `owner`, extract `content`.
-    public fun unwrap&lt;Content&gt;(account: &amp;signer, tao: Tao&lt;Content&gt;): Content {
-        let Tao&lt;Content&gt; { owner, content } = tao;
-
-        assert!(owner == Signer::address_of(account), 123);
-
-        content
-    }
-}
-</code></pre>
-<pre><code class="language-move">/// A folder tao to store an arbitrary number of taos.
-module 0x1::Folder {
-    /// A simple tao struct containing a vector of resources.
-    struct Tao&lt;Content&gt; has key, store {
-        content: vector&lt;Content&gt;
-    }
-
-    /// Create a new tao, with the static set of resources inside it.
-    public fun wrap&lt;Content&gt;(content: vector&lt;Content&gt;): Tao&lt;Content&gt; {
-        Tao&lt;Content&gt; { content }
-    }
-
-    /// Immutable read-only reference to the vector containing resources.
-    public fun read&lt;Content&gt;(tao: &amp;Tao&lt;Content&gt;): &amp;vector&lt;Content&gt; {
-        let Tao&lt;Content&gt; { content } = tao;
-
-        content
-    }
-
-    /// Destroy the tao, and return the static set of resources inside it.
-    public fun unwrap&lt;Content&gt;(tao: Tao&lt;Content&gt;): vector&lt;Content&gt; {
-        let Tao&lt;Content&gt; { content } = tao;
-
-        content
-    }
-</code></pre>
-<p><em>A token can be placed inside <code>Ownable</code> and it can be placed inside <code>Folder</code>, or other way around, if so desired.</em></p>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="witness"><a class="header" href="#witness">Witness</a></h1>
 <div class="table-wrapper"><table><thead><tr><th></th><th></th></tr></thead><tbody>
 <tr><td><strong>Name</strong></td><td>Witness</td></tr>
@@ -340,9 +318,9 @@ module 0x1::Folder {
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
+<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
 <p>A <strong>Witness</strong> is an ephemeral resource designed to prove only once that the a resource in question can be initiated only once after the witness has been created. The resource is dropped after use, ensuring that the same resource cannot be reused to initialize any other struct.</p>
-<h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
+<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
 <pre><code class="language-move">/// Module that defines a generic type `Guardian&lt;T&gt;` which can only be
 /// instantiated with a witness.
 module examples::guardian {
@@ -396,9 +374,9 @@ module examples::peace {
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-3"><a class="header" href="#summary-3">Summary</a></h2>
+<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
 <p>Move module following the <strong>Accountless Design</strong> pattern doesn't handle storage (<code>move_to()</code> / <code>move_from()</code>) directly, instead the storage must be handled outside the module in transaction scripts. This makes the module code footprint smaller, design simpler, implementation more portable and provides a way to implement storage agnostic smart contract design on some Move powered platforms.</p>
-<h2 id="examples-3"><a class="header" href="#examples-3">Examples</a></h2>
+<h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
 <pre><code class="language-move">module 0x1::Outbox {
     use Std::Event;
     use Std::Signer;
@@ -459,9 +437,9 @@ module examples::peace {
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-4"><a class="header" href="#summary-4">Summary</a></h2>
+<h2 id="summary-3"><a class="header" href="#summary-3">Summary</a></h2>
 <p>A <strong>Hot Potato</strong> is a struct without <code>key</code>, <code>store</code> and <code>drop</code> <a href="https://move-language.github.io/move/abilities.html">abilities</a> forcing the struct to be used within the transaction it was created in. This is desired in applications like <a href="https://github.com/MystenLabs/sui/blob/a6156aeaf332b9f257cf04063a9a751a7a431360/sui_programmability/examples/defi/sources/flash_lender.move">flash loans</a> where the loans must be initiated and repaid during the same transaction.</p>
-<h2 id="examples-4"><a class="header" href="#examples-4">Examples</a></h2>
+<h2 id="examples-3"><a class="header" href="#examples-3">Examples</a></h2>
 <pre><code class="language-move">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -651,9 +629,9 @@ module defi::flash_lender {
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-5"><a class="header" href="#summary-5">Summary</a></h2>
+<h2 id="summary-4"><a class="header" href="#summary-4">Summary</a></h2>
 <p><strong>Script Based Design</strong> combines <a href="./accountless_design.html">Accountless Design</a> with <em>Move Transaction Scripts</em> enabling a design where most of the business logic resides in transaction scripts, while keeping the most critical parts in modules. This way the transaction scripts can be developed and improved faster than a regular module would, while providing the same kind of guarantees as regular modules by keeping the most critical part (state transitions) in modules.</p>
-<h2 id="examples-5"><a class="header" href="#examples-5">Examples</a></h2>
+<h2 id="examples-4"><a class="header" href="#examples-4">Examples</a></h2>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="transferable-witness"><a class="header" href="#transferable-witness">Transferable Witness</a></h1>
 <div class="table-wrapper"><table><thead><tr><th></th><th></th></tr></thead><tbody>
 <tr><td><strong>Name</strong></td><td>Transferable Witness</td></tr>
@@ -663,9 +641,9 @@ module defi::flash_lender {
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-6"><a class="header" href="#summary-6">Summary</a></h2>
+<h2 id="summary-5"><a class="header" href="#summary-5">Summary</a></h2>
 <p>A <strong>Transferable Witness</strong> is a semi-ephemeral storable <a href="./witness.html">witness</a> wrapped into a disposable <a href="./capability.html">capability</a>. </p>
-<h2 id="examples-6"><a class="header" href="#examples-6">Examples</a></h2>
+<h2 id="examples-5"><a class="header" href="#examples-5">Examples</a></h2>
 <pre><code class="language-move">/// This pattern is based on combination of two others: Capability and a Witness.
 /// Since Witness is something to be careful with, spawning it should be only
 /// allowed to authorized users (ideally only once). But some scenarios require
