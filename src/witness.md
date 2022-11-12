@@ -46,6 +46,7 @@ module hacker::hack {
 那么如果此时有一个hacker想要抢先注册这个token，那么需要构造模块中的x提前调用`publish_coin`函数，但是由于Move中的类型系统限制了这种情况的发生，因为模块外部是不能构造其他模块的结构体资源。
 
 ```solidity
+// Move编译器报错
 ┌─ /sources/m.move:25:31
    │
 25 │         coin::publish_coin<X>(X {}); 

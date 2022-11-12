@@ -10,7 +10,7 @@ Move设计模式包含：
 - Hot Potato
 - Updating...
 
-本书可以选择本地通过命令构建，也可以直接访问在线网站[move-patterns](https://blog.chrisyy.top/move-patterns/) ，英文原版 [move-patterns.com](https://www.move-patterns.com/)
+本书可以选择本地通过命令构建，也可以直接访问[在线网站](https://blog.chrisyy.top/move-patterns/)
 
 ```
 mdbook serve --open
