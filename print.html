@@ -366,53 +366,73 @@ struct Wrapper&lt;T: key + store&gt; has key, store {
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
-<p>A <strong>Witness</strong> is an ephemeral resource designed to prove only once that the a resource in question can be initiated only once after the witness has been created. The resource is dropped after use, ensuring that the same resource cannot be reused to initialize any other struct.</p>
-<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
-<pre><code class="language-move">/// Module that defines a generic type `Guardian&lt;T&gt;` which can only be
-/// instantiated with a witness.
-module examples::guardian {
-    use sui::id::VersionedID;
-    use sui::tx_context::{Self, TxContext};
-
-    /// Phantom parameter T can only be initialized in the `create_guardian`
-    /// function. But the types passed here must have `drop`.
-    struct Guardian&lt;phantom T: drop&gt; has key, store {
-        id: VersionedID
-    }
-
-    /// The first argument of this function is an actual instance of the
-    /// type T with `drop` ability. It is dropped as soon as received.
-    public fun create_guardian&lt;T: drop&gt;(
-        _witness: T, ctx: &amp;mut TxContext
-    ): Guardian&lt;T&gt; {
-        Guardian { id: tx_context::new_id(ctx) }
+<h2 id="概述-2"><a class="header" href="#概述-2">概述</a></h2>
+<p>witness是一种临时资源，相关资源只能被使用一次，资源在使用后被丢弃，确保不能重复使用相同的资源来初始化任何其他结构，通常用来确认一个类型的的所有权。</p>
+<p>witness得益于Move中的类型系统。一个类型实例化的时候，它只能在定义这个类型的模块中创建。</p>
+<p>一个简单的例子，在framework里面定义了coin合约用来定义token标准，如果想要注册token那么合约会调用<code>publish_coin</code>。</p>
+<pre><code class="language-solidity">module framework::coin {
+    /// The witness patameter ensures that the function can only be called by the module defined T.
+    public fun publish_coin&lt;T: drop&gt;(_witness: T) {
+        // register this coin to the registry table
     }
 }
+module examples::xcoin {
+    use framework::coin;
+    /// The Witness type.
+    struct X has drop {}
+    /// Only this module defined X can call framework::publish_coin&lt;X&gt;
+    public fun publish() {
+        coin::publish_coin&lt;X&gt;(X {});
+    }
+}
+module hacker::hack {
+    use framework::coin;
+    use examples::xcoin::X;
 
-/// Custom module that makes use of the `guardian`.
-module examples::peace {
-    use sui::transfer;
-    use sui::tx_context::{Self, TxContext};
-
-    // Use the `guardian` as a dependency.
-    use 0x0::guardian;
-
-    /// This type is intended to be used only once.
-    struct PEACE has drop {}
-
-    /// Module initializer is the best way to ensure that the
-    /// code is called only once. With `Witness` pattern it is
-    /// often the best practice.
-    fun init(ctx: &amp;mut TxContext) {
-        transfer::transfer(
-            guardian::create_guardian(PEACE {}, ctx),
-            tx_context::sender(ctx)
-        )
+    public fun publish() {
+        // Illegal, X can not be constructed here.
+        coin::publish_coin&lt;X&gt;(X {}); 
     }
 }
 </code></pre>
-<p><em>Example for Sui Move is taken from the book <a href="https://examples.sui.io/patterns/witness.html">Sui Move by Example</a> by <a href="https://github.com/damirka">Damir Shamanaev</a>.</em></p>
+<p>那么如果此时有一个hacker想要抢先注册这个token，那么需要构造模块中的x提前调用<code>publish_coin</code>函数，但是由于Move中的类型系统限制了这种情况的发生，因为模块外部是不能构造其他模块的结构体资源。</p>
+<pre><code class="language-solidity">┌─ /sources/m.move:25:31
+   │
+25 │         coin::publish_coin&lt;X&gt;(X {}); 
+   │                               ^^^^ Invalid instantiation of '(examples=0x1)::xcoin::X'.
+All structs can only be constructed in the module in which they are declared
+</code></pre>
+<h2 id="如何使用-2"><a class="header" href="#如何使用-2">如何使用</a></h2>
+<p>witness在Sui中与其他Move公链有一些区别。</p>
+<p>如果结构类型与定义它的模块名称相同且是大写，并且没有字段或者只有一个布尔字段，则意味着它是一个one-time witness类型。该类型只会在模块初始化时使用，在合约中验证是否是one-time witness类型，可以通过sui framwork中<a href="https://github.com/MystenLabs/sui/blob/main/crates/sui-framework/sources/types.move#L10">types::is_one_time_witness</a>来验证。</p>
+<p>例如在sui的coin库中，如果需要注册一个coin类型，那么需要调用<a href="https://github.com/MystenLabs/sui/blob/main/crates/sui-framework/sources/coin.move#L176">create_currency</a>函数。函数参数则就需要一个one-time witness类型。为了传递该类型参数，需要在模块初始化<code>init</code>函数参数中第一个位置传递，即：</p>
+<pre><code class="language-solidity">// 注册一个M_COIN类型的通用Token
+module examples::m_coin {
+    use sui::coin;
+    use sui::transfer;
+    use sui::tx_context::{Self, TxContext};
+
+		// 必须是模块名大写字母
+    struct M_COIN has drop{}
+
+		// 第一个位置传递
+    fun init (witness: M, ctx: &amp;mut TxContext) {
+        let cap = coin::create_currency(witness, 8, ctx);
+        transfer::transfer(cap, tx_context::sender(ctx));
+    }
+}
+</code></pre>
+<p>sui中的初始化函数只能有一个或者两个参数，且最后的参数一定是<code>&amp;mut TxContext</code>类型，one-time witness类型同样是模块初始化时自动传递的。</p>
+<blockquote>
+<p><code>init</code>函数如果传递除了上述提到的以外的参数，Move编译器能够编译通过，但是部署时Sui的验证器会报错。此外如果第一个传递的参数不是one-time witness类型，同样也只会在部署时Sui验证才会报错。</p>
+</blockquote>
+<h2 id="总结-2"><a class="header" href="#总结-2">总结</a></h2>
+<p>witness模式通常其他模式一同使用，例如Wrapper和capability模式。</p>
+<p>除了在sui的coin标准库中使用到了wintess，以下例子同样也有使用到：</p>
+<ul>
+<li><a href="https://github.com/MystenLabs/sui/blob/main/sui_programmability/examples/defi/sources/pool.move">Liquidity pool</a></li>
+<li><a href="https://github.com/MystenLabs/sui/blob/main/sui_programmability/examples/fungible_tokens/sources/regulated_coin.move">Regulated coin</a></li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="hot-potato"><a class="header" href="#hot-potato">Hot Potato</a></h1>
 <div class="table-wrapper"><table><thead><tr><th></th><th></th></tr></thead><tbody>
 <tr><td><strong>Name</strong></td><td>Hot Potato</td></tr>
@@ -422,7 +442,7 @@ module examples::peace {
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="概述-2"><a class="header" href="#概述-2">概述</a></h2>
+<h2 id="概述-3"><a class="header" href="#概述-3">概述</a></h2>
 <p>Hot Potato模式受益于Move中的Ability，Hot Potato是一个没有<code>key</code>、<code>store</code>和<code>drop</code>能力的结构，强制该结构在创建它的模块中使用掉。这种模式在闪电贷款这样的需要原子性的程序中是理想的，因为在同一交易中必须启动和偿还贷款。</p>
 <pre><code class="language-move">struct Hot_Potato {}
 </code></pre>
@@ -431,7 +451,7 @@ module examples::peace {
 <blockquote>
 <p>闪电贷本质也是一个调用顺序的问题</p>
 </blockquote>
-<h2 id="如何使用-2"><a class="header" href="#如何使用-2">如何使用</a></h2>
+<h2 id="如何使用-3"><a class="header" href="#如何使用-3">如何使用</a></h2>
 <h3 id="aptos-2"><a class="header" href="#aptos-2">Aptos</a></h3>
 <p>Aptos上<a href="https://github.com/pontem-network/liquidswap/blob/main/sources/swap/liquidity_pool.move#L99">Liqudswasp</a>项目实现了FlashLoan，这里提取了核心的代码。</p>
 <pre><code class="language-move">public fun flashloan&lt;X, Y, Curve&gt;(x_loan: u64, y_loan: u64): (Coin&lt;X&gt;, Coin&lt;Y&gt;, Flashloan&lt;X, Y, Curve&gt;)
@@ -562,7 +582,7 @@ public fun pay_flashloan&lt;X, Y, Curve&gt;(
     }
 }
 </code></pre>
-<h2 id="总结-2"><a class="header" href="#总结-2">总结</a></h2>
+<h2 id="总结-3"><a class="header" href="#总结-3">总结</a></h2>
 <p>Hot Potato设计模式不仅仅只适用于闪电贷的场景，还可以用来控制更复杂的函数调用顺序。</p>
 <p>例如我们想要一个制作土豆的合约，当用户调用<code>get_potato</code>时，会得到一个没有任何能力的<code>potato</code>，我们想要用户得倒之后，按照切土豆、煮土豆最后才能吃土豆的一个既定流程来操作。所以用户为了完成交易那么必须最后调用<code>consume_potato</code>，但是该函数限制了土豆必须被<code>cut</code>和<code>cook</code>，所以需要分别调用<code>cut_potato</code>和<code>cook_potato</code>，<code>cook_potato</code>中又限制了必须先被<code>cut</code>，从而合约保证了调用顺序必须为get→cut→cook→consume，从而控制了调用顺序。</p>
 <pre><code class="language-move">module example::hot_potato {
@@ -606,10 +626,10 @@ public fun pay_flashloan&lt;X, Y, Curve&gt;(
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
 <p>In the <strong>Multiple Configurations</strong> approach singletons (especially for configuration data) are provided to the module as arguments instead of storing them to any specific location. </p>
 <p>By incorporating this design into your modules, you would automatically add a layer of configurability by giving users or admins (if any) a way to create configurations which others could use. This would be similar to Uniswap which lets anyone create markets others could participate in.</p>
-<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
+<h2 id="examples"><a class="header" href="#examples">Examples</a></h2>
 <p>Let's say you have an auction smart contract X and an admin has created a configuration to account A. Then B could issue a transaction script to bid on C's resource like this:</p>
 <pre><code class="language-move">X::place_bid(A, C, 1234);
 </code></pre>
@@ -633,9 +653,9 @@ public fun pay_flashloan&lt;X, Y, Curve&gt;(
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
+<h2 id="summary-1"><a class="header" href="#summary-1">Summary</a></h2>
 <p>Move module following the <strong>Accountless Design</strong> pattern doesn't handle storage (<code>move_to()</code> / <code>move_from()</code>) directly, instead the storage must be handled outside the module in transaction scripts. This makes the module code footprint smaller, design simpler, implementation more portable and provides a way to implement storage agnostic smart contract design on some Move powered platforms.</p>
-<h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
+<h2 id="examples-1"><a class="header" href="#examples-1">Examples</a></h2>
 <pre><code class="language-move">module 0x1::Outbox {
     use Std::Event;
     use Std::Signer;
@@ -696,9 +716,9 @@ public fun pay_flashloan&lt;X, Y, Curve&gt;(
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-3"><a class="header" href="#summary-3">Summary</a></h2>
+<h2 id="summary-2"><a class="header" href="#summary-2">Summary</a></h2>
 <p><strong>Script Based Design</strong> combines <a href="./accountless_design.html">Accountless Design</a> with <em>Move Transaction Scripts</em> enabling a design where most of the business logic resides in transaction scripts, while keeping the most critical parts in modules. This way the transaction scripts can be developed and improved faster than a regular module would, while providing the same kind of guarantees as regular modules by keeping the most critical part (state transitions) in modules.</p>
-<h2 id="examples-3"><a class="header" href="#examples-3">Examples</a></h2>
+<h2 id="examples-2"><a class="header" href="#examples-2">Examples</a></h2>
 <div style="break-before: page; page-break-before: always;"></div><h1 id="transferable-witness"><a class="header" href="#transferable-witness">Transferable Witness</a></h1>
 <div class="table-wrapper"><table><thead><tr><th></th><th></th></tr></thead><tbody>
 <tr><td><strong>Name</strong></td><td>Transferable Witness</td></tr>
@@ -708,9 +728,9 @@ public fun pay_flashloan&lt;X, Y, Curve&gt;(
 <tr><td><strong>Known to work on</strong></td><td>Move</td></tr>
 </tbody></table>
 </div>
-<h2 id="summary-4"><a class="header" href="#summary-4">Summary</a></h2>
+<h2 id="summary-3"><a class="header" href="#summary-3">Summary</a></h2>
 <p>A <strong>Transferable Witness</strong> is a semi-ephemeral storable <a href="./witness.html">witness</a> wrapped into a disposable <a href="./capability.html">capability</a>. </p>
-<h2 id="examples-4"><a class="header" href="#examples-4">Examples</a></h2>
+<h2 id="examples-3"><a class="header" href="#examples-3">Examples</a></h2>
 <pre><code class="language-move">/// This pattern is based on combination of two others: Capability and a Witness.
 /// Since Witness is something to be careful with, spawning it should be only
 /// allowed to authorized users (ideally only once). But some scenarios require
