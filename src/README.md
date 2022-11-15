@@ -34,7 +34,7 @@ Move 的诞生从[Rust](https://www.rust-lang.org/)中吸取了灵感，Move也�
 
   Move中对资源的访问都是通过[全局存储操作](http://movebook.chrisyy.top/global-storage-operators.html)接口来访问的。操作函数包括`move_to`或者`move from`或者`borrow_global`，`borrow_global_mut`等函数。从全局储存里面取出资源，或者存放到账户下去，引用资源对象或者修改，都是需要**要开发者显示的去表示。**
 
-  ```solidity
+  ```move
   module example::m {
       // A Coin type
       // 一种Coin类型的资源
