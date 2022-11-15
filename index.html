@@ -167,7 +167,7 @@ contract A {
 </code></pre>
 <p>但是在Move中存储方式是完全不一样的，Move合约并不直接存储资源，代码中的每一个变量都是一个资源对象，是资源对象那么必须通过显示的接口去明确的调用。</p>
 <p>Move中对资源的访问都是通过<a href="http://movebook.chrisyy.top/global-storage-operators.html">全局存储操作</a>接口来访问的。操作函数包括<code>move_to</code>或者<code>move from</code>或者<code>borrow_global</code>，<code>borrow_global_mut</code>等函数。从全局储存里面取出资源，或者存放到账户下去，引用资源对象或者修改，都是需要<strong>要开发者显示的去表示。</strong></p>
-<pre><code class="language-solidity">module example::m {
+<pre><code class="language-move">module example::m {
     // A Coin type
     // 一种Coin类型的资源
     struct Coin has key, store{
