@@ -10,4 +10,4 @@ description = "Book on software design patterns for Move smart contract programm
 git-repository-url = "https://github.com/chrisyy2003/move-patterns"
 git-repository-icon = "fa-github"
 edit-url-template = "https://github.com/chrisyy2003/move-patterns/edit/main/{path}"
-cname = "patterns.chrisyy.top"
+cname = "move-patterns.chrisyy.top"
